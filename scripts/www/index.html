@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>校洗达 - 校园智能拼单洗衣</title>
+<script src="https://modao.cc/agent-py/static/source/js/tailwindcss.js"></script>
+<script src="https://modao.cc/agent-py/static/source/js/iconify-icon.min.js"></script>
+<style>
+        @font-face {
+            font-family: 'Inter';
+            src: local('Arial');
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        #app-container {
+            width: 375px;
+            height: 812px;
+            background-color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+        }
+        .page {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 80px;
+        }
+        .page.active {
+            display: flex;
+            flex-direction: column;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tab-active {
+            color: #3b82f6;
+        }
+        .toast {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            z-index: 100;
+            display: none;
+            text-align: center;
+            max-width: 80%;
+        }
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 50;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+<div id="app-container">
+<!-- Toast 通知 -->
+<div class="toast" id="toast"></div>
+<!-- 弹窗遮罩 -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+<div class="bg-white rounded-2xl p-6 w-[300px]" onclick="event.stopPropagation()">
+<div id="modal-content"></div>
+</div>
+</div>
+<!-- 1. 首页 -->
+<div class="page active" id="page-home">
+<!-- 顶部搜索 -->
+<div class="p-4 bg-white sticky top-0 z-10">
+<div class="relative">
+<iconify-icon class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" icon="lucide:search"></iconify-icon>
+<input class="w-full bg-gray-100 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500" placeholder="搜索校内洗衣店或服务" type="text"/>
+</div>
+</div>
+<!-- Banner -->
+<div class="px-4 mt-2">
+<div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-5 text-white relative overflow-hidden">
+<div class="relative z-10">
+<h2 class="text-xl font-bold">今日推荐</h2>
+<p class="mt-1 text-blue-50 opacity-90">洗衣不用跑，拼单更省钱</p>
+<button class="mt-4 bg-white text-blue-600 px-5 py-2 rounded-full text-sm font-bold shadow-lg" onclick="switchPage('dry')">立即预约</button>
+</div>
+<iconify-icon class="absolute -right-4 -bottom-4 text-8xl text-white opacity-20 rotate-12" icon="lucide:washing-machine"></iconify-icon>
+</div>
+</div>
+<!-- 常用服务网格 -->
+<div class="grid grid-cols-2 gap-3 p-4">
+<div class="bg-blue-50 p-4 rounded-xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform" onclick="switchPage('dry')">
+<div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mb-2">
+<iconify-icon class="text-white text-2xl" icon="lucide:wind"></iconify-icon>
+</div>
+<span class="text-gray-800 font-medium">预约干洗</span>
+</div>
+<div class="bg-orange-50 p-4 rounded-xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform" onclick="switchPage('dry')">
+<div class="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mb-2">
+<iconify-icon class="text-white text-2xl" icon="lucide:sun"></iconify-icon>
+</div>
+<span class="text-gray-800 font-medium">单独烘干</span>
+</div>
+<div class="bg-purple-50 p-4 rounded-xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform" onclick="switchPage('square')">
+<div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mb-2">
+<iconify-icon class="text-white text-2xl" icon="lucide:users"></iconify-icon>
+</div>
+<span class="text-gray-800 font-medium">我的拼单</span>
+</div>
+<div class="bg-green-50 p-4 rounded-xl flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform" onclick="switchPage('orders')">
+<div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mb-2">
+<iconify-icon class="text-white text-2xl" icon="lucide:clipboard-list"></iconify-icon>
+</div>
+<span class="text-gray-800 font-medium">取送记录</span>
+</div>
+</div>
+<!-- 优惠卡片 -->
+<div class="px-4">
+<div class="border-2 border-dashed border-blue-200 bg-blue-50/30 rounded-xl p-4 flex items-start space-x-3">
+<iconify-icon class="text-blue-600 text-2xl mt-1" icon="lucide:ticket-percent"></iconify-icon>
+<div>
+<h3 class="font-bold text-blue-900">新用户首单烘干立减8元</h3>
+<p class="text-xs text-blue-700 mt-1 leading-relaxed">3人拼单更划算，完成后统一配送至宿舍楼下，省时省力。</p>
+</div>
+</div>
+</div>
+<!-- 门店 -->
+<div class="p-4">
+<div class="flex justify-between items-center mb-3">
+<h3 class="font-bold text-gray-800">附近合作门店</h3>
+<span class="text-xs text-gray-500">更多 <iconify-icon icon="lucide:chevron-right"></iconify-icon></span>
+</div>
+<div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+<div class="flex justify-between items-start">
+<div>
+<span class="bg-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded font-bold uppercase">支持拼单烘干</span>
+<h4 class="font-bold text-gray-900 mt-1 text-lg">校园北门干洗店</h4>
+<div class="flex items-center text-xs text-gray-500 mt-1 space-x-2">
+<span>距校门120米</span>
+<span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+<span class="text-green-500 font-medium">今日可接单</span>
+</div>
+</div>
+<img alt="Laundry Shop Entrance" class="w-16 h-16 rounded-lg object-cover" src="https://modao.cc/agent-py/media/generated_images/2026-06-30/1bdd1feaedd44a118a4a9b0bbd605eee.jpg"/>
+</div>
+<button class="w-full mt-4 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-bold active:bg-black" onclick="switchPage('dry')">选择门店</button>
+</div>
+</div>
+</div>
+<!-- 2. 单独烘干页 -->
+<div class="page" id="page-dry">
+<div class="p-4 bg-white sticky top-0 z-10 flex items-center">
+<button class="p-1 -ml-1" onclick="switchPage('home')">
+<iconify-icon class="text-2xl text-gray-800" icon="lucide:chevron-left"></iconify-icon>
+</button>
+<div class="ml-2">
+<h2 class="text-lg font-bold text-gray-900 leading-none">单独烘干</h2>
+<p class="text-[10px] text-gray-500 mt-1">选择拼单模式，分摊烘干费用</p>
+</div>
+</div>
+<!-- 模式切换 -->
+<div class="px-4 mt-2">
+<div class="bg-gray-100 p-1 rounded-xl flex">
+<button class="flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white shadow-sm text-blue-600" id="tab-mode-group" onclick="setDryMode('group')">拼单烘干</button>
+<button class="flex-1 py-2 text-sm font-bold rounded-lg transition-all text-gray-500" id="tab-mode-single" onclick="setDryMode('single')">单人烘干</button>
+</div>
+</div>
+<div class="p-4 space-y-4">
+<!-- 共有配置块 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+<div class="flex justify-between items-center mb-4">
+<span class="text-gray-600 font-medium">烘干机容量</span>
+<span class="text-gray-900 font-bold">最多 20 件衣物</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-gray-600 font-medium">我的衣物数量</span>
+<div class="flex items-center space-x-3">
+<button class="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center active:bg-gray-50" onclick="changeItemCount(-1)">
+<iconify-icon icon="lucide:minus"></iconify-icon>
+</button>
+<span class="text-lg font-bold text-blue-600 w-8 text-center" id="item-count-display">5</span>
+<button class="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center active:bg-gray-50" onclick="changeItemCount(1)">
+<iconify-icon icon="lucide:plus"></iconify-icon>
+</button>
+</div>
+</div>
+<input class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" id="item-slider" max="20" min="1" oninput="onSliderChange(this.value)" type="range" value="5"/>
+</div>
+<div class="mt-6 pt-4 border-t border-dashed border-gray-100" id="group-info">
+<div class="flex items-center text-sm text-gray-500">
+<iconify-icon class="mr-1" icon="lucide:info"></iconify-icon>
+<span id="group-summary">烘干总价 ¥120 · 4人拼单共20件 · 我5件</span>
+</div>
+</div>
+<div class="mt-6 pt-4 border-t border-dashed border-gray-100 hidden" id="single-info">
+<p class="text-sm text-gray-500">单人烘干总价，独享完整烘干机，不参与拼单</p>
+</div>
+</div>
+<!-- 时间选择 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+<h3 class="text-sm font-bold text-gray-800 mb-3">送衣到店时间</h3>
+<div class="grid grid-cols-3 gap-2">
+<button class="time-btn border border-gray-200 rounded-lg py-2 text-sm text-gray-600 active:bg-blue-50 active:border-blue-500" data-time="14:00" onclick="setTime('14:00')">14:00</button>
+<button class="time-btn border border-gray-200 rounded-lg py-2 text-sm text-gray-600" data-time="15:00" onclick="setTime('15:00')">15:00</button>
+<button class="time-btn border border-gray-200 rounded-lg py-2 text-sm text-gray-600" data-time="16:00" onclick="setTime('16:00')">16:00</button>
+<button class="time-btn border border-gray-200 rounded-lg py-2 text-sm opacity-40 bg-gray-100 cursor-not-allowed" data-time="17:00" onclick="setTime('17:00')">17:00</button>
+<button class="time-btn border border-gray-200 rounded-lg py-2 text-sm opacity-40 bg-gray-100 cursor-not-allowed" data-time="18:00" onclick="setTime('18:00')">18:00</button>
+<button class="time-btn border border-gray-200 rounded-lg py-2 text-sm opacity-40 bg-gray-100 cursor-not-allowed" data-time="19:00" onclick="setTime('19:00')">19:00</button>
+</div>
+<p class="text-[10px] text-red-500 mt-2 hidden" id="time-warning">今日已截止，请选择明日</p>
+</div>
+<!-- 配送地址 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+<h3 class="text-sm font-bold text-gray-800 mb-3">配送地址</h3>
+<div class="flex items-center space-x-2 bg-gray-50 p-3 rounded-lg">
+<iconify-icon class="text-blue-500" icon="lucide:map-pin"></iconify-icon>
+<input class="bg-transparent border-none text-sm w-full focus:ring-0" type="text" value="东12宿舍楼楼下"/>
+<iconify-icon class="text-gray-400 text-sm" icon="lucide:edit-2"></iconify-icon>
+</div>
+</div>
+</div>
+<!-- 底部结算 -->
+<div class="fixed bottom-0 w-[375px] bg-white border-t border-gray-100 p-4 flex justify-between items-center safe-bottom z-20">
+<div>
+<span class="text-xs text-gray-500">实时应付</span>
+<div class="flex items-baseline text-blue-600">
+<span class="text-sm font-bold">¥</span>
+<span class="text-2xl font-black ml-0.5" id="final-price">30</span>
+</div>
+</div>
+<button class="bg-blue-600 text-white px-10 py-3 rounded-full font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform" id="action-btn" onclick="submitOrder()">发起拼单</button>
+</div>
+</div>
+<!-- 3. 拼单广场 -->
+<div class="page" id="page-square">
+<div class="p-4 bg-white sticky top-0 z-10">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-xl font-bold text-gray-900">拼单广场</h2>
+<button class="bg-blue-50 text-blue-600 text-xs px-3 py-1.5 rounded-full font-bold" onclick="showMyRooms()">我的拼单房间</button>
+</div>
+<div class="flex space-x-4 border-b border-gray-100">
+<button class="pb-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600 filter-tab" onclick="filterRooms('all')">全部</button>
+<button class="pb-2 text-sm font-medium text-gray-500 filter-tab" onclick="filterRooms('building')">同楼栋</button>
+<button class="pb-2 text-sm font-medium text-gray-500 filter-tab" onclick="filterRooms('expiring')">今日到期</button>
+<button class="pb-2 text-sm font-medium text-gray-500 filter-tab" onclick="filterRooms('empty')">未满员</button>
+</div>
+</div>
+<div class="p-4 space-y-4" id="room-list">
+<!-- 房间 1 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm room-card" data-building="east12">
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center space-x-2">
+<h3 class="font-bold text-gray-900">东12宿舍楼</h3>
+<span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">3分钟前发起</span>
+</div>
+<div class="mt-3 flex items-center space-x-4">
+<div class="text-center">
+<p class="text-[10px] text-gray-400 uppercase">当前进度</p>
+<p class="font-bold text-blue-600">12/20件</p>
+</div>
+<div class="w-[1px] h-6 bg-gray-100"></div>
+<div class="text-center">
+<p class="text-[10px] text-gray-400 uppercase">预计单价</p>
+<p class="font-bold text-gray-800">¥6/件</p>
+</div>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xs text-orange-500 font-bold countdown" data-seconds="7080">01:58:00</p>
+<p class="text-[10px] text-gray-400">剩余时间</p>
+</div>
+</div>
+<div class="mt-4 w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+<div class="bg-blue-500 h-full w-[60%]"></div>
+</div>
+<div class="mt-4 flex justify-between items-center">
+<span class="text-xs text-gray-500">还差 <span class="text-blue-600 font-bold">8件</span> 可成团</span>
+<button class="bg-gray-900 text-white px-6 py-2 rounded-lg text-xs font-bold active:bg-black" onclick="confirmJoin(1)">加入拼单</button>
+</div>
+</div>
+<!-- 房间 2 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm room-card" data-building="west6">
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center space-x-2">
+<h3 class="font-bold text-gray-900">西6宿舍楼</h3>
+<span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">10分钟前发起</span>
+</div>
+<div class="mt-3 flex items-center space-x-4">
+<div class="text-center">
+<p class="text-[10px] text-gray-400 uppercase">当前进度</p>
+<p class="font-bold text-blue-600">18/20件</p>
+</div>
+<div class="w-[1px] h-6 bg-gray-100"></div>
+<div class="text-center">
+<p class="text-[10px] text-gray-400 uppercase">预计单价</p>
+<p class="font-bold text-gray-800">¥5.8/件</p>
+</div>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xs text-red-500 font-bold countdown" data-seconds="2520">00:42:00</p>
+<p class="text-[10px] text-gray-400">剩余时间</p>
+</div>
+</div>
+<div class="mt-4 w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+<div class="bg-blue-500 h-full w-[90%]"></div>
+</div>
+<div class="mt-4 flex justify-between items-center">
+<span class="text-xs text-gray-500">还差 <span class="text-blue-600 font-bold">2件</span> 可成团</span>
+<button class="bg-gray-900 text-white px-6 py-2 rounded-lg text-xs font-bold active:bg-black" onclick="confirmJoin(2)">加入拼单</button>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. 拼单详情页 -->
+<div class="page" id="page-room-detail">
+<div class="p-4 bg-white sticky top-0 z-10 flex items-center">
+<button class="p-1 -ml-1" onclick="switchPage('square')">
+<iconify-icon class="text-2xl text-gray-800" icon="lucide:chevron-left"></iconify-icon>
+</button>
+<h2 class="ml-2 text-lg font-bold text-gray-900">拼单房间详情</h2>
+</div>
+<div class="p-4 space-y-4">
+<div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+<div class="flex justify-between items-center">
+<h3 class="text-lg font-bold text-gray-900">东12宿舍楼</h3>
+<span class="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded font-medium">拼单中</span>
+</div>
+<p class="text-xs text-gray-400 mt-1">3分钟前发起</p>
+<div class="mt-6">
+<div class="flex justify-between items-end mb-2">
+<span class="text-sm font-bold text-gray-800">拼单进度 12/20件</span>
+<span class="text-xs text-orange-500 countdown" data-seconds="7080">01:57:45</span>
+</div>
+<div class="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+<div class="bg-blue-500 h-full w-[60%]"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-6 p-4 bg-gray-50 rounded-xl">
+<div>
+<p class="text-[10px] text-gray-400 uppercase">预计单价</p>
+<p class="text-lg font-black text-gray-900">¥6.00 <span class="text-[10px] font-normal text-gray-500">/件</span></p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">烘干总价</p>
+<p class="text-lg font-black text-gray-900">¥120.00</p>
+</div>
+</div>
+</div>
+<!-- 费用明细 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+<h3 class="text-sm font-bold text-gray-800 mb-4">我的拼单明细</h3>
+<div class="space-y-3">
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">我的衣物数量</span>
+<span class="text-gray-900 font-medium detail-count">5件</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">拼单总人数</span>
+<span class="text-gray-900 font-medium">4人</span>
+</div>
+<div class="pt-3 border-t border-gray-100 flex justify-between items-center">
+<span class="font-bold text-gray-800">我应付金额</span>
+<span class="text-xl font-black text-blue-600 detail-price">¥30.00</span>
+</div>
+</div>
+</div>
+<!-- 操作 -->
+<div class="grid grid-cols-1 gap-3">
+<button class="w-full bg-white border border-gray-200 py-3 rounded-xl font-bold text-gray-700 flex items-center justify-center" onclick="showTeammates()">
+<iconify-icon class="mr-2" icon="lucide:users"></iconify-icon>
+                    查看拼单队友
+                </button>
+<button class="w-full bg-white border border-gray-200 py-3 rounded-xl font-bold text-gray-700 flex items-center justify-center" onclick="contactStore()">
+<iconify-icon class="mr-2" icon="lucide:phone"></iconify-icon>
+                    联系门店
+                </button>
+<button class="w-full bg-red-50 py-3 rounded-xl font-bold text-red-500 border border-red-100 flex items-center justify-center mt-4" onclick="refundConfirm()">
+                    申请退款
+                </button>
+</div>
+</div>
+</div>
+<!-- 5. 订单页 -->
+<div class="page" id="page-orders">
+<div class="p-4 bg-white sticky top-0 z-10">
+<h2 class="text-xl font-bold text-gray-900 mb-4">订单详情</h2>
+<div class="flex space-x-6 border-b border-gray-100">
+<button class="pb-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600">拼单共享烘干</button>
+<button class="pb-2 text-sm font-medium text-gray-400">单独烘干订单</button>
+</div>
+</div>
+<div class="p-4 space-y-4">
+<!-- 订单卡片 -->
+<div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<span class="text-xs text-gray-400">订单号：XXD20260318</span>
+<span class="text-sm font-bold text-blue-600">已送衣到店</span>
+</div>
+<!-- 时间线 -->
+<div class="relative pl-8 space-y-8 before:content-[''] before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
+<!-- Step 1 -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-green-500 border-4 border-white shadow-sm flex items-center justify-center z-10">
+<iconify-icon class="text-white text-xs" icon="lucide:check"></iconify-icon>
+</div>
+<div>
+<h4 class="text-sm font-bold text-gray-900">已支付</h4>
+<p class="text-xs text-gray-400 mt-0.5">今天 14:30</p>
+</div>
+</div>
+<!-- Step 2 (Active) -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow-sm flex items-center justify-center z-10 animate-pulse">
+<div class="w-2 h-2 rounded-full bg-white"></div>
+</div>
+<div>
+<h4 class="text-sm font-bold text-blue-600">已送衣到店</h4>
+<p class="text-xs text-gray-400 mt-0.5">今天 15:10</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-gray-200 border-4 border-white shadow-sm flex items-center justify-center z-10"></div>
+<div>
+<h4 class="text-sm font-medium text-gray-400">烘干中</h4>
+<p class="text-xs text-gray-400 mt-0.5">预计今天 18:30 完成</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="relative">
+<div class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-gray-200 border-4 border-white shadow-sm flex items-center justify-center z-10"></div>
+<div>
+<h4 class="text-sm font-medium text-gray-400">配送至宿舍</h4>
+<p class="text-xs text-gray-400 mt-0.5">预计今天 19:00 前送达</p>
+</div>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-gray-100">
+<h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">费用明细</h4>
+<div class="space-y-2">
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">烘干总价</span>
+<span class="text-gray-900">¥120.00</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">拼单人数</span>
+<span class="text-gray-900">4人</span>
+</div>
+<div class="flex justify-between text-sm font-bold text-gray-900 pt-2">
+<span>我的应付</span>
+<span class="text-blue-600">¥30.00</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 6. 地址页 -->
+<div class="page" id="page-address">
+<div class="p-4 bg-white sticky top-0 z-10 flex justify-between items-center">
+<h2 class="text-xl font-bold text-gray-900">我的地址</h2>
+<button class="text-blue-600 text-sm font-bold" onclick="showToast('功能开发中')">管理</button>
+</div>
+<div class="p-4 space-y-4">
+<div class="bg-white border-2 border-blue-500 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+<div class="flex items-center space-x-2">
+<span class="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">默认</span>
+<h3 class="font-bold text-gray-900">东12宿舍楼楼下</h3>
+</div>
+<p class="text-sm text-gray-500 mt-2">校洗达用户 138****8888</p>
+<iconify-icon class="absolute -right-2 -bottom-2 text-6xl text-blue-500 opacity-5" icon="lucide:check-circle-2"></iconify-icon>
+</div>
+<button class="w-full border-2 border-dashed border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-gray-400 active:bg-gray-50" onclick="addAddress()">
+<iconify-icon class="text-3xl mb-1" icon="lucide:plus-circle"></iconify-icon>
+<span class="text-sm font-medium">添加新地址</span>
+</button>
+</div>
+</div>
+<!-- 7. 个人中心页 -->
+<div class="page" id="page-profile">
+<!-- 用户头 -->
+<div class="bg-blue-600 pt-12 pb-20 px-6 relative overflow-hidden">
+<div class="flex items-center space-x-4 relative z-10 text-white">
+<div class="w-16 h-16 rounded-full bg-white/20 border-2 border-white/50 flex items-center justify-center overflow-hidden">
+<iconify-icon class="text-3xl" icon="lucide:user"></iconify-icon>
+</div>
+<div>
+<h2 class="text-xl font-bold">校洗达用户</h2>
+<p class="text-sm text-blue-100">138****8888</p>
+</div>
+</div>
+<iconify-icon class="absolute top-12 right-6 text-white text-2xl opacity-80" icon="lucide:settings"></iconify-icon>
+<div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white opacity-5 rounded-full"></div>
+</div>
+<div class="px-4 -mt-10 relative z-10">
+<!-- 统计 -->
+<div class="bg-white rounded-2xl p-4 shadow-xl grid grid-cols-3 gap-4 border border-gray-100">
+<div class="text-center">
+<p class="text-lg font-black text-gray-900">12</p>
+<p class="text-[10px] text-gray-400">进行中</p>
+</div>
+<div class="text-center">
+<p class="text-lg font-black text-gray-900">¥128</p>
+<p class="text-[10px] text-gray-400">累计节省</p>
+</div>
+<div class="text-center">
+<p class="text-lg font-black text-gray-900">5</p>
+<p class="text-[10px] text-gray-400">优惠券</p>
+</div>
+</div>
+<!-- 菜单项 -->
+<div class="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+<button class="w-full flex items-center justify-between p-4 border-b border-gray-50 active:bg-gray-50" onclick="switchPage('orders')">
+<div class="flex items-center space-x-3 text-gray-700">
+<iconify-icon class="text-blue-500 text-lg" icon="lucide:package"></iconify-icon>
+<span class="font-medium">我的订单</span>
+</div>
+<iconify-icon class="text-gray-300" icon="lucide:chevron-right"></iconify-icon>
+</button>
+<button class="w-full flex items-center justify-between p-4 border-b border-gray-50 active:bg-gray-50" onclick="switchPage('square')">
+<div class="flex items-center space-x-3 text-gray-700">
+<iconify-icon class="text-orange-500 text-lg" icon="lucide:users-2"></iconify-icon>
+<span class="font-medium">我的拼单房间</span>
+</div>
+<iconify-icon class="text-gray-300" icon="lucide:chevron-right"></iconify-icon>
+</button>
+<button class="w-full flex items-center justify-between p-4 border-b border-gray-50 active:bg-gray-50" onclick="switchPage('address')">
+<div class="flex items-center space-x-3 text-gray-700">
+<iconify-icon class="text-green-500 text-lg" icon="lucide:map-pin"></iconify-icon>
+<span class="font-medium">收货地址</span>
+</div>
+<iconify-icon class="text-gray-300" icon="lucide:chevron-right"></iconify-icon>
+</button>
+<button class="w-full flex items-center justify-between p-4 active:bg-gray-50" onclick="showToast('功能开发中')">
+<div class="flex items-center space-x-3 text-gray-700">
+<iconify-icon class="text-gray-400 text-lg" icon="lucide:settings-2"></iconify-icon>
+<span class="font-medium">系统设置</span>
+</div>
+<iconify-icon class="text-gray-300" icon="lucide:chevron-right"></iconify-icon>
+</button>
+</div>
+</div>
+</div>
+<!-- 底部导航栏 -->
+<nav class="absolute bottom-0 w-full bg-white border-t border-gray-100 flex justify-around items-center h-[70px] px-2 safe-bottom z-30">
+<button class="nav-item flex flex-col items-center justify-center space-y-1 tab-active" id="nav-home" onclick="switchPage('home')">
+<iconify-icon class="text-xl" icon="lucide:home"></iconify-icon>
+<span class="text-[10px] font-bold">首页</span>
+</button>
+<button class="nav-item flex flex-col items-center justify-center space-y-1 text-gray-400" id="nav-square" onclick="switchPage('square')">
+<iconify-icon class="text-xl" icon="lucide:users"></iconify-icon>
+<span class="text-[10px] font-bold">拼单广场</span>
+</button>
+<button class="nav-item flex flex-col items-center justify-center space-y-1 text-gray-400" id="nav-dry" onclick="switchPage('dry')">
+<iconify-icon class="text-3xl text-blue-600 -mt-6 bg-white p-1 rounded-full shadow-lg border border-gray-50" icon="lucide:plus-square"></iconify-icon>
+<span class="text-[10px] font-bold">下单</span>
+</button>
+<button class="nav-item flex flex-col items-center justify-center space-y-1 text-gray-400" id="nav-orders" onclick="switchPage('orders')">
+<iconify-icon class="text-xl" icon="lucide:clipboard-list"></iconify-icon>
+<span class="text-[10px] font-bold">订单</span>
+</button>
+<button class="nav-item flex flex-col items-center justify-center space-y-1 text-gray-400" id="nav-profile" onclick="switchPage('profile')">
+<iconify-icon class="text-xl" icon="lucide:user"></iconify-icon>
+<span class="text-[10px] font-bold">我的</span>
+</button>
+</nav>
+</div>
+<script>
+    // 状态管理
+    const state = {
+        currentPage: 'home',
+        dryMode: 'group', // 'group' or 'single'
+        itemCount: 5,
+        totalPrice: 120,
+        selectedTime: '14:00',
+        rooms: [
+            { id: 1, building: 'east12', current: 12, time: 7080, price: 6 },
+            { id: 2, building: 'west6', current: 18, time: 2520, price: 5.8 }
+        ]
+    };
+
+    // 页面跳转逻辑
+    function switchPage(pageId) {
+        // 隐藏所有页面
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        // 显示目标页面
+        const target = document.getElementById(`page-${pageId}`);
+        if (target) {
+            target.classList.add('active');
+            state.currentPage = pageId;
+            
+            // 更新底部导航高亮
+            document.querySelectorAll('.nav-item').forEach(nav => {
+                nav.classList.remove('tab-active');
+                nav.classList.add('text-gray-400');
+            });
+            const activeNav = document.getElementById(`nav-${pageId}`);
+            if (activeNav) {
+                activeNav.classList.add('tab-active');
+                activeNav.classList.remove('text-gray-400');
+            }
+
+            // 初始化特定页面的动态逻辑
+            if (pageId === 'room-detail') updateDetailUI();
+        }
+        window.scrollTo(0, 0);
+    }
+
+    // 单独烘干页交互
+    function setDryMode(mode) {
+        state.dryMode = mode;
+        const groupTab = document.getElementById('tab-mode-group');
+        const singleTab = document.getElementById('tab-mode-single');
+        const groupInfo = document.getElementById('group-info');
+        const singleInfo = document.getElementById('single-info');
+        const actionBtn = document.getElementById('action-btn');
+
+        if (mode === 'group') {
+            groupTab.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            groupTab.classList.remove('text-gray-500');
+            singleTab.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+            singleTab.classList.add('text-gray-500');
+            groupInfo.classList.remove('hidden');
+            singleInfo.classList.add('hidden');
+            actionBtn.innerText = '发起拼单';
+        } else {
+            singleTab.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            singleTab.classList.remove('text-gray-500');
+            groupTab.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+            groupTab.classList.add('text-gray-500');
+            singleInfo.classList.remove('hidden');
+            groupInfo.classList.add('hidden');
+            actionBtn.innerText = '立即支付';
+        }
+        updateCalculations();
+    }
+
+    function changeItemCount(delta) {
+        const newValue = Math.max(1, Math.min(20, state.itemCount + delta));
+        onSliderChange(newValue);
+    }
+
+    function onSliderChange(val) {
+        state.itemCount = parseInt(val);
+        document.getElementById('item-count-display').innerText = state.itemCount;
+        document.getElementById('item-slider').value = state.itemCount;
+        updateCalculations();
+    }
+
+    function updateCalculations() {
+        const finalPriceEl = document.getElementById('final-price');
+        const groupSummaryEl = document.getElementById('group-summary');
+        
+        if (state.dryMode === 'single') {
+            finalPriceEl.innerText = '120';
+        } else {
+            // 拼单模式：应付 = 120 * (x / 20)
+            const myPrice = Math.round(120 * (state.itemCount / 20));
+            finalPriceEl.innerText = myPrice;
+            
+            // 拼单人数：1 + ceil((20-x)/5)
+            const othersCount = 20 - state.itemCount;
+            const groupSize = 1 + Math.ceil(othersCount / 5);
+            groupSummaryEl.innerText = `烘干总价 ¥120 · ${groupSize}人拼单共20件 · 我${state.itemCount}件`;
+        }
+    }
+
+    function setTime(time) {
+        const timeVal = parseInt(time.split(':')[0]);
+        const warning = document.getElementById('time-warning');
+        
+        if (timeVal > 16) {
+            warning.classList.remove('hidden');
+            return;
+        }
+        
+        warning.classList.add('hidden');
+        state.selectedTime = time;
+        
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            if (btn.dataset.time === time) {
+                btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-600');
+                btn.classList.remove('text-gray-600');
+            } else if (parseInt(btn.dataset.time.split(':')[0]) <= 16) {
+                btn.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600');
+                btn.classList.add('text-gray-600');
+            }
+        });
+    }
+
+    function submitOrder() {
+        if (state.dryMode === 'group') {
+            openModal(`
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <iconify-icon icon="lucide:rocket" class="text-blue-600 text-3xl"></iconify-icon>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2">拼单发起成功！</h3>
+                    <p class="text-sm text-gray-500 mb-6">2小时内未满员自动退款，系统已自动为您匹配室友。</p>
+                    <button onclick="switchPage('room-detail'); closeModal();" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">查看拼单</button>
+                </div>
+            `);
+        } else {
+            showToast('支付成功！跳转订单中...');
+            setTimeout(() => switchPage('orders'), 1500);
+        }
+    }
+
+    // 拼单广场筛选
+    function filterRooms(type) {
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.classList.remove('text-blue-600', 'border-blue-600', 'border-b-2');
+            tab.classList.add('text-gray-500', 'font-medium');
+        });
+        event.target.classList.add('text-blue-600', 'border-blue-600', 'border-b-2');
+        event.target.classList.remove('text-gray-500', 'font-medium');
+
+        const cards = document.querySelectorAll('.room-card');
+        cards.forEach(card => {
+            if (type === 'all') card.style.display = 'block';
+            else if (type === 'building' && card.dataset.building === 'east12') card.style.display = 'block';
+            else if (type === 'building') card.style.display = 'none';
+            else if (type === 'expiring' && card.querySelector('.countdown').classList.contains('text-red-500')) card.style.display = 'block';
+            else if (type === 'expiring') card.style.display = 'none';
+            else if (type === 'empty') card.style.display = 'block';
+        });
+    }
+
+    function confirmJoin(id) {
+        openModal(`
+            <div class="text-center">
+                <h3 class="font-bold text-lg mb-2">确认加入该拼单？</h3>
+                <p class="text-sm text-gray-500 mb-6">加入后需支付 ¥30.00，如果拼单失败将原路退款。</p>
+                <div class="flex space-x-3">
+                    <button onclick="closeModal()" class="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500">取消</button>
+                    <button onclick="joinSuccess()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold">确认加入</button>
+                </div>
+            </div>
+        `);
+    }
+
+    function joinSuccess() {
+        closeModal();
+        showToast('加入拼单成功！');
+        setTimeout(() => switchPage('room-detail'), 1000);
+    }
+
+    // 房间详情逻辑
+    function updateDetailUI() {
+        const myPrice = Math.round(120 * (state.itemCount / 20));
+        document.querySelector('.detail-count').innerText = state.itemCount + '件';
+        document.querySelector('.detail-price').innerText = '¥' + myPrice.toFixed(2);
+    }
+
+    function showTeammates() {
+        openModal(`
+            <div class="space-y-4">
+                <h3 class="font-bold text-gray-900 border-b pb-3">拼单队友 (4)</h3>
+                <div class="space-y-3 max-h-[300px] overflow-y-auto">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">我</div>
+                            <span class="text-sm font-medium">校洗达用户</span>
+                        </div>
+                        <span class="text-xs text-gray-500">${state.itemCount}件</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs">张</div>
+                            <span class="text-sm font-medium">张同学(东12)</span>
+                        </div>
+                        <span class="text-xs text-gray-500">5件</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs">李</div>
+                            <span class="text-sm font-medium">李*华</span>
+                        </div>
+                        <span class="text-xs text-gray-500">4件</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs">A</div>
+                            <span class="text-sm font-medium">Alex</span>
+                        </div>
+                        <span class="text-xs text-gray-500">3件</span>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="w-full mt-4 bg-gray-100 py-2 rounded-lg text-sm font-bold">关闭</button>
+            </div>
+        `);
+    }
+
+    function contactStore() {
+        showToast('联系门店：138-0000-xxxx');
+    }
+
+    function refundConfirm() {
+        openModal(`
+            <div class="text-center">
+                <h3 class="font-bold text-lg mb-2">确定申请退款？</h3>
+                <p class="text-sm text-gray-500 mb-6">当前拼单正在进行中，申请退款将退出队伍。</p>
+                <div class="flex space-x-3">
+                    <button onclick="closeModal()" class="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500">取消</button>
+                    <button onclick="executeRefund()" class="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold">确定退款</button>
+                </div>
+            </div>
+        `);
+    }
+
+    function executeRefund() {
+        closeModal();
+        showToast('退款已申请，预计1-3个工作日到账');
+        setTimeout(() => switchPage('home'), 1500);
+    }
+
+    function showMyRooms() {
+        showToast('加载中...');
+        setTimeout(() => switchPage('room-detail'), 500);
+    }
+
+    function addAddress() {
+        openModal(`
+            <div class="space-y-4">
+                <h3 class="font-bold text-lg mb-4">添加新地址</h3>
+                <input type="text" placeholder="收货人姓名" class="w-full border-gray-200 rounded-lg text-sm p-3 bg-gray-50 border">
+                <input type="text" placeholder="联系电话" class="w-full border-gray-200 rounded-lg text-sm p-3 bg-gray-50 border">
+                <input type="text" placeholder="宿舍楼及门牌号" class="w-full border-gray-200 rounded-lg text-sm p-3 bg-gray-50 border">
+                <div class="flex space-x-3">
+                    <button onclick="closeModal()" class="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500 text-sm">取消</button>
+                    <button onclick="closeModal(); showToast('地址保存成功')" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold text-sm">保存</button>
+                </div>
+            </div>
+        `);
+    }
+
+    // 公共 UI 工具
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', 2000);
+    }
+
+    function openModal(content) {
+        document.getElementById('modal-content').innerHTML = content;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('modal-overlay').style.display = 'none';
+    }
+
+    // 倒计时逻辑
+    function startCountdowns() {
+        setInterval(() => {
+            document.querySelectorAll('.countdown').forEach(el => {
+                let seconds = parseInt(el.dataset.seconds);
+                if (seconds > 0) {
+                    seconds--;
+                    el.dataset.seconds = seconds;
+                    const h = Math.floor(seconds / 3600);
+                    const m = Math.floor((seconds % 3600) / 60);
+                    const s = seconds % 60;
+                    el.innerText = [h, m, s].map(v => v < 10 ? '0' + v : v).join(':');
+                }
+            });
+        }, 1000);
+    }
+
+    // 初始化
+    window.onload = () => {
+        updateCalculations();
+        setTime('14:00');
+        startCountdowns();
+        // 如果有 hash，则根据 hash 切换页面 (可选)
+    };
+
+</script>
+</body>
+</html>
